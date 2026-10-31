@@ -29,10 +29,23 @@ for the current Windows user. Settings are in `settings.json` next to it. The
 
     GOOS=windows GOARCH=amd64 go build -ldflags="-H windowsgui -s -w" -o otp.exe .
 
-The icon and manifest live in `rsrc_windows_amd64.syso`. To regenerate it:
+The icon, manifest and version info live in `rsrc_windows_*.syso`, generated
+from `winres/`. To regenerate them:
 
     go install github.com/tc-hib/go-winres@latest
     go generate
+
+## Release
+
+The version is set in `winres/winres.json` (`file_version`, as
+`major.minor.patch.build`). Change the first three numbers by hand for a new
+version; the build number is bumped automatically.
+
+    ./package.sh   # bump build number, build dist/otp4windows-{amd64,arm64}.exe.zip
+    ./release.sh   # create GitHub release v<major.minor.patch> with the zips
+
+`release.sh` runs `package.sh` when the zips are missing and takes an optional
+release title as argument. It needs `jq`, `zip`, `go-winres` and the GitHub CLI.
 
 ## Test
 
