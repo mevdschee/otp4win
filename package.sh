@@ -27,7 +27,8 @@ rm -rf dist && mkdir dist
 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-H windowsgui -s -w -X main.version=$version" -o dist/otp4win.exe .
 
 go run ./tools/mkico dist/otp4win.ico winres/icon.png winres/icon48.png winres/icon32.png winres/icon16.png
-wixl -a x64 -D Version="$version" -D ExePath=dist/otp4win.exe -D IconPath=dist/otp4win.ico \
+wixl -a x64 -D Version="$version" -D FileVersion="$version.$build" \
+  -D ExePath=dist/otp4win.exe -D IconPath=dist/otp4win.ico \
   -o dist/otp4win-$version-amd64.msi installer/otp4win.wxs
 
 # wixl removes the old version right after InstallValidate, outside the
@@ -39,4 +40,6 @@ sed -i 's/^RemoveExistingProducts\t\t1401\r\?$/RemoveExistingProducts\t\t1501\r/
 grep -q $'^RemoveExistingProducts\t\t1501\r$' dist/seq.idt
 msibuild dist/otp4win-$version-amd64.msi -i dist/seq.idt
 rm dist/seq.idt
+# the exe must be versioned in the File table, see installer/otp4win.wxs
+msiinfo export dist/otp4win-$version-amd64.msi File | grep -q $'\t'"$version.$build"$'\t'
 ls -l dist/*.msi
