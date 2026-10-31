@@ -11,8 +11,22 @@ func TestContrast(t *testing.T) {
 	}
 }
 
-// Every palette must keep text readable (WCAG AA, 4.5:1) and the issuer
-// circle and countdown bar visible (3:1), on normal and selected cards.
+func TestLargeTextOn(t *testing.T) {
+	for bg, want := range map[rgb]rgb{
+		0x0078D7: 0xFFFFFF, // Windows accent: white, as Windows does
+		0x60CDFF: 0x000000, // light accent in dark mode: black
+		0xFFFFFF: 0x000000,
+		0x000000: 0xFFFFFF,
+	} {
+		if got := largeTextOn(bg); got != want {
+			t.Errorf("largeTextOn(%06x) = %06x, want %06x", bg, got, want)
+		}
+	}
+}
+
+// Every palette must keep text readable (WCAG AA: 4.5:1, or 3:1 for the
+// large bold circle letter) and the issuer circle and countdown bar visible
+// (3:1), on normal and selected cards.
 func TestPaletteContrast(t *testing.T) {
 	highContrastBlack := sysColors{
 		window: 0x000000, windowText: 0xFFFFFF, grayText: 0x3FF23F,
@@ -36,7 +50,7 @@ func TestPaletteContrast(t *testing.T) {
 			}
 			check("text", c.text, c.fill, 7)
 			check("subtext", c.subtext, c.fill, 4.5)
-			check("icon letter", c.iconText, c.iconFill, 4.5)
+			check("icon letter", c.iconText, c.iconFill, 3) // 14pt bold: large text
 			check("icon circle", c.iconFill, c.fill, 3)
 			check("bar", c.bar, c.track, 3)
 			check("bar warning", c.warn, c.track, 3)

@@ -7,6 +7,7 @@
 package main
 
 import (
+	"flag"
 	"image"
 	"image/color"
 	"image/png"
@@ -16,20 +17,23 @@ import (
 
 	"golang.org/x/image/draw"
 	"golang.org/x/image/font"
-	"golang.org/x/image/font/gofont/gobold"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
 )
 
+// fontPath is a plain bold sans-serif for the letters, close to Segoe UI.
+var fontPath = flag.String("font", "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf", "TrueType font for the letters")
+
 const master = 1024 // size of the supersampled master image
 
 var (
-	background = color.RGBA{0x1f, 0x4e, 0x79, 0xff}
-	keyColor   = color.RGBA{0xf2, 0xc1, 0x4e, 0xff}
+	background = color.RGBA{0x00, 0x78, 0xd4, 0xff} // Windows accent blue, as in the app
+	keyColor   = color.RGBA{0xf2, 0xc1, 0x4e, 0xff} // gold
 	textColor  = color.RGBA{0xff, 0xff, 0xff, 0xff}
 )
 
 func main() {
+	flag.Parse()
 	img := render()
 	for _, out := range []struct {
 		name string
@@ -85,7 +89,11 @@ func render() *image.RGBA {
 	})
 
 	// The letters OTP, centred in the lower half.
-	tt, err := opentype.Parse(gobold.TTF)
+	ttf, err := os.ReadFile(*fontPath)
+	if err != nil {
+		log.Fatalf("%v (install fonts-noto-core or pass -font)", err)
+	}
+	tt, err := opentype.Parse(ttf)
 	if err != nil {
 		log.Fatal(err)
 	}

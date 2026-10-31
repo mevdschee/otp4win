@@ -5,7 +5,7 @@ A TOTP (two-factor authentication code) client for Windows, written in Go with
 [open-otp](https://github.com/avan1235/open-otp), but uses plain Win32 controls
 and GDI drawing (no OpenGL), so it is small, starts fast and works well over RDP.
 
-![otp4win in light and dark mode](screenshot.png)
+![otp4win in dark mode](screenshot1.png) ![otp4win in light mode](screenshot2.png)
 
 ## Features
 

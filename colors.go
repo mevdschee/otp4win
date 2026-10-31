@@ -44,6 +44,16 @@ func readableOn(bg rgb) rgb {
 	return 0xFFFFFF
 }
 
+// largeTextOn returns white when it is readable as large text on bg (WCAG
+// 3:1 for bold text of 14pt and up), like Windows puts white text on its
+// accent color; otherwise black. Used for the letter in the issuer circle.
+func largeTextOn(bg rgb) rgb {
+	if contrast(0xFFFFFF, bg) >= 3 {
+		return 0xFFFFFF
+	}
+	return 0x000000
+}
+
 // ensureContrast moves fg toward black or white until it reaches the
 // minimum contrast ratio against bg, so odd system colors stay readable.
 func ensureContrast(fg, bg rgb, minimum float64) rgb {
@@ -60,7 +70,7 @@ func (c cardColors) fix() cardColors {
 	c.text = ensureContrast(c.text, c.fill, 7)
 	c.subtext = ensureContrast(c.subtext, c.fill, 4.5)
 	c.iconFill = ensureContrast(c.iconFill, c.fill, 3)
-	c.iconText = ensureContrast(c.iconText, c.iconFill, 4.5)
+	c.iconText = ensureContrast(c.iconText, c.iconFill, 3) // large bold text
 	c.bar = ensureContrast(c.bar, c.track, 3)
 	c.warn = ensureContrast(c.warn, c.track, 3)
 	return c
@@ -129,7 +139,7 @@ func buildPalette(dark, highContrast bool, sys sysColors) palette {
 		normal := cardColors{
 			fill: 0x2B2B2B, border: 0x3A3A3A,
 			text: 0xFFFFFF, subtext: 0xC8C8C8,
-			iconFill: accent, iconText: readableOn(accent),
+			iconFill: accent, iconText: largeTextOn(accent),
 			bar: accent, track: 0x4A4A4A, warn: 0xFF99A4,
 		}
 		sel := normal
@@ -143,7 +153,7 @@ func buildPalette(dark, highContrast bool, sys sysColors) palette {
 	normal := cardColors{
 		fill: sys.window, border: mix(sys.window, sys.windowText, 0.12),
 		text: sys.windowText, subtext: sys.grayText,
-		iconFill: accent, iconText: readableOn(accent),
+		iconFill: accent, iconText: largeTextOn(accent),
 		bar: accent, track: mix(sys.window, sys.windowText, 0.12), warn: 0xC42B1C,
 	}
 	sel := normal
