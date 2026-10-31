@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unsafe"
 
 	"github.com/rodrigocfd/windigo/co"
 	"github.com/rodrigocfd/windigo/ui"
@@ -485,17 +486,28 @@ func (me *codeList) paint() {
 	if w <= 0 || h <= 0 {
 		return
 	}
+	// Back buffer as a 32-bit DIB section, so shapes can be drawn with
+	// anti-aliasing in Go (canvas) and text with GDI on the same pixels.
 	mem, _ := hdc.CreateCompatibleDC()
 	defer mem.DeleteDC()
-	bmp, _ := hdc.CreateCompatibleBitmap(w, h)
+	var bmi win.BITMAPINFO
+	bmi.BmiHeader.SetBiSize()
+	bmi.BmiHeader.Width = int32(w)
+	bmi.BmiHeader.Height = -int32(h) // top-down
+	bmi.BmiHeader.Planes = 1
+	bmi.BmiHeader.BitCount = 32
+	bmi.BmiHeader.Compression = co.BI_RGB
+	bmp, bits, err := mem.CreateDIBSection(&bmi, co.DIB_COLORS_RGB, 0, 0)
+	if err != nil {
+		return
+	}
 	defer bmp.DeleteObject()
 	oldBmp, _ := mem.SelectObject(win.HGDIOBJ(bmp))
 	defer mem.SelectObject(oldBmp)
+	cv := &canvas{pix: unsafe.Slice((*uint32)(unsafe.Pointer(bits)), w*h), w: w, h: h}
 
 	pal := me.app.pal
-	bg := solidBrush(cref(pal.background))
-	defer bg.DeleteObject()
-	mem.FillRect(&win.RECT{Right: int32(w), Bottom: int32(h)}, bg)
+	cv.fill(pal.background)
 	mem.SetBkMode(co.BKMODE_TRANSPARENT)
 
 	now := time.Now()
@@ -523,55 +535,46 @@ func (me *codeList) paint() {
 		case me.dragging && i == me.press:
 			// leave the slot empty, the card follows the mouse below
 		default:
-			me.paintCard(mem, i, top, now, i == me.selected, focused, &sig)
+			me.paintCard(mem, cv, i, top, now, i == me.selected, focused, &sig)
 		}
 		top += rh
 	}
 	if me.dragging && me.press >= 0 && me.press < len(me.app.rows) {
-		me.paintCard(mem, me.press, me.dragY-me.dragOff, now, true, true, &sig)
+		me.paintCard(mem, cv, me.press, me.dragY-me.dragOff, now, true, true, &sig)
 	}
 	me.shown = sig.String()
 
+	win.GdiFlush()
 	hdc.BitBlt(win.POINT{}, win.SIZE{Cx: int32(w), Cy: int32(h)}, mem, win.POINT{}, co.ROP_SRCCOPY)
 }
 
 // warnSeconds is when the countdown bar switches to the warning color.
 const warnSeconds = 5
 
-func (me *codeList) paintCard(hdc win.HDC, row, top int, now time.Time, selected, focused bool, sig *strings.Builder) {
+// paintCard draws one card: the shapes on the canvas (anti-aliased), then
+// the text with GDI. GdiFlush keeps the two in order, since GDI may batch.
+func (me *codeList) paintCard(hdc win.HDC, cv *canvas, row, top int, now time.Time, selected, focused bool, sig *strings.Builder) {
 	c := &me.app.pal.card
 	if selected {
 		c = &me.app.pal.selected
 	}
 	a := &me.app.accounts[me.app.rows[row].Index]
 	card := me.cardRect(top)
+	f := func(v int32) float64 { return float64(v) }
+	win.GdiFlush()
 
 	// Card, with a thicker border when it has the keyboard focus.
-	brush := solidBrush(cref(c.fill))
-	defer brush.DeleteObject()
-	penW := 1
+	bw := float64(max(1, m(1)))
 	if selected && focused {
-		penW = m(2)
+		bw = float64(m(2))
 	}
-	pen, _ := win.CreatePen(co.PS_INSIDEFRAME, penW, cref(c.border))
-	defer pen.DeleteObject()
-	oldPen, _ := hdc.SelectObjectPen(pen)
-	oldBrush, _ := hdc.SelectObjectBrush(brush)
-	r := int32(m(8))
-	hdc.RoundRect(card, win.SIZE{Cx: r, Cy: r})
+	cv.card(f(card.Left), f(card.Top), f(card.Right), f(card.Bottom), float64(m(6)), bw, c.fill, c.border)
 
 	// Leading issuer "icon": a circle with the first letter.
-	cy := (card.Top + card.Bottom) / 2
-	is := int32(m(mIcon))
-	icon := win.RECT{Left: card.Left + int32(m(14)), Top: cy - is/2, Right: card.Left + int32(m(14)) + is, Bottom: cy + is/2}
-	iconBrush := solidBrush(cref(c.iconFill))
-	defer iconBrush.DeleteObject()
-	hdc.SelectObjectBrush(iconBrush)
-	hdc.SelectObjectPen(win.HPEN(mustStock(co.STOCK_NULL_PEN)))
-	hdc.Ellipse(icon)
-	hdc.SelectObjectFont(me.fontIcon)
-	hdc.SetTextColor(cref(c.iconText))
-	hdc.DrawText(initial(a), &icon, co.DT_CENTER|co.DT_VCENTER|co.DT_SINGLELINE|co.DT_NOPREFIX)
+	cy := f(card.Top+card.Bottom) / 2
+	rIcon := float64(m(mIcon)) / 2
+	cxIcon := f(card.Left) + float64(m(14)) + rIcon
+	cv.fillCircle(cxIcon, cy, rIcon, c.iconFill)
 
 	// Trailing countdown bar, in the warning color for the last seconds.
 	trail := me.trailingRect(card)
@@ -587,9 +590,21 @@ func (me *codeList) paintCard(hdc win.HDC, row, top int, now time.Time, selected
 	if left*float64(a.period()) <= warnSeconds {
 		bar = c.warn
 	}
-	me.paintBar(hdc, trail, left, cref(bar), cref(c.track))
+	barW, barH := float64(m(mBarW)), float64(m(mBarH))
+	bx := f(trail.Left+trail.Right)/2 - barW/2
+	by := cy - barH/2
+	cv.fillRoundRect(bx, by, bx+barW, by+barH, barW/2, c.track)
+	cv.fillRoundRect(bx, by+barH*(1-left), bx+barW, by+barH, barW/2, bar)
 
-	// Name line and code.
+	// Text on top of the shapes.
+	icon := win.RECT{
+		Left: int32(cxIcon - rIcon), Top: int32(cy - rIcon),
+		Right: int32(cxIcon + rIcon), Bottom: int32(cy + rIcon),
+	}
+	hdc.SelectObjectFont(me.fontIcon)
+	hdc.SetTextColor(cref(c.iconText))
+	hdc.DrawText(initial(a), &icon, co.DT_CENTER|co.DT_VCENTER|co.DT_SINGLELINE|co.DT_NOPREFIX)
+
 	textLeft := icon.Right + int32(m(16))
 	textRight := trail.Left - int32(m(8))
 	name := a.NamePresentation()
@@ -605,38 +620,7 @@ func (me *codeList) paintCard(hdc win.HDC, row, top int, now time.Time, selected
 	hdc.SelectObjectFont(me.fontCode)
 	hdc.SetTextColor(cref(c.text))
 	hdc.DrawText(splitCode(code), &codeRc, co.DT_LEFT|co.DT_VCENTER|co.DT_SINGLELINE|co.DT_NOPREFIX)
-
-	hdc.SelectObjectPen(oldPen)
-	hdc.SelectObjectBrush(oldBrush)
-}
-
-// paintBar draws the countdown as a vertical bar that drains downward as
-// the period runs out.
-func (me *codeList) paintBar(hdc win.HDC, area win.RECT, left float64, color, trackColor win.COLORREF) {
-	bw, bh := int32(m(mBarW)), int32(m(mBarH))
-	cx, cy := (area.Left+area.Right)/2, (area.Top+area.Bottom)/2
-	track := win.RECT{Left: cx - bw/2, Top: cy - bh/2, Right: cx - bw/2 + bw, Bottom: cy - bh/2 + bh}
-	r := win.SIZE{Cx: bw, Cy: bw}
-
-	hdc.SelectObjectPen(win.HPEN(mustStock(co.STOCK_NULL_PEN)))
-	trackBrush := solidBrush(trackColor)
-	defer trackBrush.DeleteObject()
-	hdc.SelectObjectBrush(trackBrush)
-	hdc.RoundRect(win.RECT{Left: track.Left, Top: track.Top, Right: track.Right + 1, Bottom: track.Bottom + 1}, r)
-
-	fill := int32(math.Round(left * float64(bh)))
-	if fill <= 0 {
-		return
-	}
-	brush := solidBrush(color)
-	defer brush.DeleteObject()
-	hdc.SelectObjectBrush(brush)
-	hdc.RoundRect(win.RECT{Left: track.Left, Top: track.Bottom - fill, Right: track.Right + 1, Bottom: track.Bottom + 1}, r)
-}
-
-func mustStock(s co.STOCK) win.HGDIOBJ {
-	h, _ := win.GetStockObject(s)
-	return h
+	win.GdiFlush()
 }
 
 // initial picks the letter shown in the issuer circle.

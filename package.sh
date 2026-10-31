@@ -24,7 +24,7 @@ echo "Building otp4win $version (build $build)"
 ~/go/bin/go-winres make --arch amd64
 go test .
 rm -rf dist && mkdir dist
-GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-H windowsgui -s -w" -o dist/otp4win.exe .
+GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-H windowsgui -s -w -X main.version=$version" -o dist/otp4win.exe .
 
 go run ./tools/mkico dist/otp4win.ico winres/icon.png winres/icon48.png winres/icon32.png winres/icon16.png
 wixl -a x64 -D Version="$version" -D ExePath=dist/otp4win.exe -D IconPath=dist/otp4win.ico \

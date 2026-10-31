@@ -109,6 +109,7 @@ func (me *app) events() {
 		me.accounts = accounts
 		me.refresh()
 		me.wnd.Hwnd().SetTimer(timerTick, tickInterval)
+		me.checkForUpdate()
 		me.list.hwnd().SetFocus()
 		return 0
 	})

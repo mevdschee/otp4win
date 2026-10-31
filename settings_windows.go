@@ -17,7 +17,7 @@ var (
 
 // showSettings opens open-otp's settings screen. Changes apply immediately.
 func showSettings(a *app) {
-	const w, h = 360, 330
+	const w, h = 360, 364
 	wnd := ui.NewModal(a.wnd,
 		ui.OptsModal().
 			Title("Settings").
@@ -65,6 +65,16 @@ func showSettings(a *app) {
 	chkHeaders := check("Show group &header", 174, p.ShowHeaders)
 	chkNulls := check("&Empty values first", 200, p.NullsFirst)
 	chkReversed := check("&Reverse sort order", 226, p.Reversed)
+
+	group("Updates", 260, 0)
+	chkUpdates := check("Check for &updates on startup", 284, p.CheckUpdates)
+	versionText := "Development build"
+	if version != "" {
+		versionText = "Version " + version
+	}
+	ui.NewStatic(wnd, ui.OptsStatic().
+		Text(versionText).
+		Position(ui.Dpi(14, h-36)).Size(ui.Dpi(w-28-88-10, 20)))
 
 	btnClose := ui.NewButton(wnd, ui.OptsButton().
 		Text("Close").
@@ -118,6 +128,10 @@ func showSettings(a *app) {
 	})
 	chkNulls.On().BnClicked(func() {
 		a.prefs.NullsFirst = chkNulls.IsChecked()
+		apply()
+	})
+	chkUpdates.On().BnClicked(func() {
+		a.prefs.CheckUpdates = chkUpdates.IsChecked()
 		apply()
 	})
 	chkReversed.On().BnClicked(func() {
