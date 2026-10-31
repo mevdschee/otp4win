@@ -50,7 +50,7 @@ func main() {
 	const w, h = 380, 540
 	wnd := ui.NewMain(
 		ui.OptsMain().
-			Title("OTP").
+			Title("otp4win").
 			Size(ui.Dpi(w, h)).
 			Center(true).
 			ClassIconId(iconId).
@@ -131,30 +131,27 @@ func (me *app) events() {
 		return 1
 	})
 	me.wnd.On().WmCtlColorStatic(func(p ui.WmCtlColor) win.HBRUSH {
-		p.Hdc().SetTextColor(me.pal.onBackground)
-		p.Hdc().SetBkColor(me.pal.background)
+		p.Hdc().SetTextColor(cref(me.pal.text))
+		p.Hdc().SetBkColor(cref(me.pal.background))
 		return me.bgBrush
 	})
 	me.wnd.On().WmCtlColorBtn(func(p ui.WmCtlColor) win.HBRUSH {
 		return me.bgBrush
 	})
 	me.wnd.On().WmCtlColorEdit(func(p ui.WmCtlColor) win.HBRUSH {
-		if !me.pal.dark { // standard look in light mode
-			p.Hdc().SetTextColor(win.GetSysColor(co.COLOR_WINDOWTEXT))
-			p.Hdc().SetBkColor(win.GetSysColor(co.COLOR_WINDOW))
-			h, _ := win.GetSysColorBrush(co.COLOR_WINDOW)
-			return h
-		}
-		p.Hdc().SetTextColor(me.pal.onSurface)
-		p.Hdc().SetBkColor(me.pal.card)
+		p.Hdc().SetTextColor(cref(me.pal.editText))
+		p.Hdc().SetBkColor(cref(me.pal.edit))
 		return me.editBrush
 	})
-	me.wnd.On().Wm(co.WM(0x001a), func(p ui.Wm) uintptr { // WM_SETTINGCHANGE
-		if me.prefs.Theme == ThemeSystem && paletteFor(ThemeSystem) != me.pal {
-			me.applyTheme() // the Windows app mode was switched
-		}
-		return 0
-	})
+	// Follow changes of the Windows app mode, high contrast and colors.
+	for _, msg := range []co.WM{co.WM(0x001a), co.WM_SYSCOLORCHANGE, co.WM_THEMECHANGED} { // 0x1a: WM_SETTINGCHANGE
+		me.wnd.On().Wm(msg, func(p ui.Wm) uintptr {
+			if *currentPalette(me.prefs.Theme) != *me.pal {
+				me.applyTheme()
+			}
+			return 0
+		})
+	}
 
 	me.wnd.On().WmTimer(timerTick, func() { me.list.tick(time.Now()) })
 	me.wnd.On().WmTimer(timerToast, func() {
@@ -365,17 +362,15 @@ func (me *app) toast(msg string) {
 }
 
 func (me *app) applyTheme() {
-	me.pal = paletteFor(me.prefs.Theme)
+	me.pal = currentPalette(me.prefs.Theme)
 	for _, b := range []win.HBRUSH{me.bgBrush, me.editBrush} {
 		if b != 0 {
 			b.DeleteObject()
 		}
 	}
-	me.bgBrush = solidBrush(me.pal.background)
-	me.editBrush = solidBrush(me.pal.card)
-	applyWindowTheme(me.wnd.Hwnd(), me.pal,
-		me.txtSearch.Hwnd(), me.btnSettings.Hwnd(), me.btnAdd.Hwnd(), me.list.hwnd(), me.lblStatus.Hwnd())
-	me.wnd.Hwnd().InvalidateRect(nil, true)
+	me.bgBrush = solidBrush(cref(me.pal.background))
+	me.editBrush = solidBrush(cref(me.pal.edit))
+	applyWindowTheme(me.wnd.Hwnd(), me.pal)
 	me.list.invalidate()
 }
 
@@ -417,5 +412,5 @@ func (me *app) clipboardText() string {
 }
 
 func (me *app) showError(msg string, err error) {
-	me.wnd.Hwnd().MessageBox(msg+":\n"+err.Error(), "OTP", co.MB_ICONERROR)
+	me.wnd.Hwnd().MessageBox(msg+":\n"+err.Error(), "otp4win", co.MB_ICONERROR)
 }

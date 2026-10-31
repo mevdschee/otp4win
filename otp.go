@@ -1,5 +1,5 @@
 //go:generate go run ./tools/genicon
-//go:generate go-winres make --arch amd64,arm64
+//go:generate go-winres make --arch amd64
 
 package main
 

@@ -11,7 +11,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// Accounts are stored in %APPDATA%\otp4windows\accounts.dat as JSON,
+// Accounts are stored in %APPDATA%\otp4win\accounts.dat as JSON,
 // encrypted with DPAPI so only the current Windows user can read them.
 // Preferences are not secret and go to settings.json next to it.
 
@@ -20,7 +20,21 @@ func dataPath(name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "otp4windows", name), nil
+	migrateDataDir(dir)
+	return filepath.Join(dir, "otp4win", name), nil
+}
+
+// migrateDataDir renames the %APPDATA%\otp4windows folder of version 0.1.0
+// to otp4win, once.
+func migrateDataDir(dir string) {
+	newDir := filepath.Join(dir, "otp4win")
+	if _, err := os.Stat(newDir); err == nil {
+		return
+	}
+	oldDir := filepath.Join(dir, "otp4windows")
+	if _, err := os.Stat(oldDir); err == nil {
+		os.Rename(oldDir, newDir)
+	}
 }
 
 func writeFile(name string, data []byte) error {

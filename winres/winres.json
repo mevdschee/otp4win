@@ -16,7 +16,7 @@
           "name": "",
           "version": ""
         },
-        "description": "OTP for Windows",
+        "description": "otp4win",
         "minimum-os": "win7",
         "execution-level": "as invoker",
         "ui-access": false,
@@ -38,16 +38,16 @@
     "#1": {
       "0000": {
         "fixed": {
-          "file_version": "0.1.0.1",
-          "product_version": "0.1.0.1"
+          "file_version": "0.2.0.2",
+          "product_version": "0.2.0.2"
         },
         "info": {
           "0409": {
-            "FileDescription": "OTP for Windows",
-            "FileVersion": "0.1.0",
-            "OriginalFilename": "otp.exe",
-            "ProductName": "OTP for Windows",
-            "ProductVersion": "0.1.0"
+            "FileDescription": "otp4win",
+            "FileVersion": "0.2.0",
+            "OriginalFilename": "otp4win.exe",
+            "ProductName": "otp4win",
+            "ProductVersion": "0.2.0"
           }
         }
       }

@@ -493,7 +493,7 @@ func (me *codeList) paint() {
 	defer mem.SelectObject(oldBmp)
 
 	pal := me.app.pal
-	bg := solidBrush(pal.background)
+	bg := solidBrush(cref(pal.background))
 	defer bg.DeleteObject()
 	mem.FillRect(&win.RECT{Right: int32(w), Bottom: int32(h)}, bg)
 	mem.SetBkMode(co.BKMODE_TRANSPARENT)
@@ -503,7 +503,7 @@ func (me *codeList) paint() {
 
 	if len(me.app.accounts) == 0 {
 		mem.SelectObjectFont(me.fontEmpty)
-		mem.SetTextColor(pal.onBackground)
+		mem.SetTextColor(cref(pal.text))
 		rc := win.RECT{Right: int32(w), Bottom: int32(h)}
 		mem.DrawText("Add New Keys", &rc, co.DT_CENTER|co.DT_VCENTER|co.DT_SINGLELINE)
 	}
@@ -517,57 +517,64 @@ func (me *codeList) paint() {
 		case !visible:
 		case r.IsHeader:
 			mem.SelectObjectFont(me.fontHeader)
-			mem.SetTextColor(pal.primary)
+			mem.SetTextColor(cref(pal.text))
 			rc := win.RECT{Left: int32(m(mMargin + 4)), Top: int32(top), Right: int32(w - m(mMargin)), Bottom: int32(top + rh - m(4))}
 			mem.DrawText(r.Header, &rc, co.DT_LEFT|co.DT_BOTTOM|co.DT_SINGLELINE|co.DT_END_ELLIPSIS|co.DT_NOPREFIX)
 		case me.dragging && i == me.press:
 			// leave the slot empty, the card follows the mouse below
 		default:
-			me.paintCard(mem, i, top, now, focused && i == me.selected, &sig)
+			me.paintCard(mem, i, top, now, i == me.selected, focused, &sig)
 		}
 		top += rh
 	}
 	if me.dragging && me.press >= 0 && me.press < len(me.app.rows) {
-		me.paintCard(mem, me.press, me.dragY-me.dragOff, now, true, &sig)
+		me.paintCard(mem, me.press, me.dragY-me.dragOff, now, true, true, &sig)
 	}
 	me.shown = sig.String()
 
 	hdc.BitBlt(win.POINT{}, win.SIZE{Cx: int32(w), Cy: int32(h)}, mem, win.POINT{}, co.ROP_SRCCOPY)
 }
 
-func (me *codeList) paintCard(hdc win.HDC, row, top int, now time.Time, selected bool, sig *strings.Builder) {
-	pal := me.app.pal
+// warnSeconds is when the countdown bar switches to the warning color.
+const warnSeconds = 5
+
+func (me *codeList) paintCard(hdc win.HDC, row, top int, now time.Time, selected, focused bool, sig *strings.Builder) {
+	c := &me.app.pal.card
+	if selected {
+		c = &me.app.pal.selected
+	}
 	a := &me.app.accounts[me.app.rows[row].Index]
 	card := me.cardRect(top)
 
-	fill := pal.card
-	if selected {
-		fill = pal.cardSelected
-	}
-	brush := solidBrush(fill)
+	// Card, with a thicker border when it has the keyboard focus.
+	brush := solidBrush(cref(c.fill))
 	defer brush.DeleteObject()
-	pen, _ := win.CreatePen(co.PS_SOLID, 1, pal.surfaceVariant)
+	penW := 1
+	if selected && focused {
+		penW = m(2)
+	}
+	pen, _ := win.CreatePen(co.PS_INSIDEFRAME, penW, cref(c.border))
 	defer pen.DeleteObject()
 	oldPen, _ := hdc.SelectObjectPen(pen)
 	oldBrush, _ := hdc.SelectObjectBrush(brush)
-	r := int32(m(12))
+	r := int32(m(8))
 	hdc.RoundRect(card, win.SIZE{Cx: r, Cy: r})
 
 	// Leading issuer "icon": a circle with the first letter.
 	cy := (card.Top + card.Bottom) / 2
 	is := int32(m(mIcon))
 	icon := win.RECT{Left: card.Left + int32(m(14)), Top: cy - is/2, Right: card.Left + int32(m(14)) + is, Bottom: cy + is/2}
-	iconBrush := solidBrush(pal.surfaceVariant)
+	iconBrush := solidBrush(cref(c.iconFill))
 	defer iconBrush.DeleteObject()
 	hdc.SelectObjectBrush(iconBrush)
 	hdc.SelectObjectPen(win.HPEN(mustStock(co.STOCK_NULL_PEN)))
 	hdc.Ellipse(icon)
 	hdc.SelectObjectFont(me.fontIcon)
-	hdc.SetTextColor(pal.onSurfaceVar)
+	hdc.SetTextColor(cref(c.iconText))
 	hdc.DrawText(initial(a), &icon, co.DT_CENTER|co.DT_VCENTER|co.DT_SINGLELINE|co.DT_NOPREFIX)
 
-	// Trailing countdown bar; the code fades from primary to error color.
-	btn := me.trailingRect(card)
+	// Trailing countdown bar, in the warning color for the last seconds.
+	trail := me.trailingRect(card)
 	code, err := a.Code(now)
 	if err != nil {
 		code = strings.Repeat("-", a.digits())
@@ -576,24 +583,27 @@ func (me *codeList) paintCard(hdc win.HDC, row, top int, now time.Time, selected
 	steps := countdownSteps(a, now)
 	sig.WriteByte(byte(steps))
 	left := float64(steps) / (float64(a.period()) * 2)
-	codeColor := lerpColor(pal.primary, pal.errorColor, 1-left)
-	me.paintBar(hdc, btn, left, codeColor)
+	bar := c.bar
+	if left*float64(a.period()) <= warnSeconds {
+		bar = c.warn
+	}
+	me.paintBar(hdc, trail, left, cref(bar), cref(c.track))
 
 	// Name line and code.
 	textLeft := icon.Right + int32(m(16))
-	textRight := btn.Left - int32(m(8))
+	textRight := trail.Left - int32(m(8))
 	name := a.NamePresentation()
 	codeRc := win.RECT{Left: textLeft, Top: card.Top, Right: textRight, Bottom: card.Bottom}
 	if name != "" {
 		hdc.SelectObjectFont(me.fontName)
-		hdc.SetTextColor(pal.onSurfaceVar)
+		hdc.SetTextColor(cref(c.subtext))
 		nameRc := win.RECT{Left: textLeft, Top: card.Top + int32(m(10)), Right: textRight, Bottom: card.Top + int32(m(28))}
 		hdc.DrawText(name, &nameRc, co.DT_LEFT|co.DT_SINGLELINE|co.DT_END_ELLIPSIS|co.DT_NOPREFIX)
 		codeRc.Top = card.Top + int32(m(26))
 		codeRc.Bottom = card.Bottom - int32(m(8))
 	}
 	hdc.SelectObjectFont(me.fontCode)
-	hdc.SetTextColor(codeColor)
+	hdc.SetTextColor(cref(c.text))
 	hdc.DrawText(splitCode(code), &codeRc, co.DT_LEFT|co.DT_VCENTER|co.DT_SINGLELINE|co.DT_NOPREFIX)
 
 	hdc.SelectObjectPen(oldPen)
@@ -602,14 +612,14 @@ func (me *codeList) paintCard(hdc win.HDC, row, top int, now time.Time, selected
 
 // paintBar draws the countdown as a vertical bar that drains downward as
 // the period runs out.
-func (me *codeList) paintBar(hdc win.HDC, area win.RECT, left float64, color win.COLORREF) {
+func (me *codeList) paintBar(hdc win.HDC, area win.RECT, left float64, color, trackColor win.COLORREF) {
 	bw, bh := int32(m(mBarW)), int32(m(mBarH))
 	cx, cy := (area.Left+area.Right)/2, (area.Top+area.Bottom)/2
 	track := win.RECT{Left: cx - bw/2, Top: cy - bh/2, Right: cx - bw/2 + bw, Bottom: cy - bh/2 + bh}
 	r := win.SIZE{Cx: bw, Cy: bw}
 
 	hdc.SelectObjectPen(win.HPEN(mustStock(co.STOCK_NULL_PEN)))
-	trackBrush := solidBrush(me.app.pal.surfaceVariant)
+	trackBrush := solidBrush(trackColor)
 	defer trackBrush.DeleteObject()
 	hdc.SelectObjectBrush(trackBrush)
 	hdc.RoundRect(win.RECT{Left: track.Left, Top: track.Top, Right: track.Right + 1, Bottom: track.Bottom + 1}, r)

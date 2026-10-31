@@ -1,4 +1,4 @@
-module github.com/mevdschee/otp4windows
+module github.com/mevdschee/otp4win
 
 go 1.27.3
 

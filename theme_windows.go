@@ -11,61 +11,27 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
-// palette holds the colors used for the custom painted parts of the UI. The
-// values are open-otp's Material light and dark color schemes.
-type palette struct {
-	dark           bool
-	background     win.COLORREF
-	onBackground   win.COLORREF
-	card           win.COLORREF // surface tinted at elevation, like ElevatedCard
-	cardSelected   win.COLORREF
-	onSurface      win.COLORREF
-	surfaceVariant win.COLORREF
-	onSurfaceVar   win.COLORREF
-	outline        win.COLORREF
-	primary        win.COLORREF
-	errorColor     win.COLORREF
+// currentPalette builds the palette for the theme setting, following the
+// Windows app mode for ThemeSystem and the system colors in high contrast.
+func currentPalette(theme string) *palette {
+	dark := theme == ThemeDark || theme == ThemeSystem && systemUsesDarkTheme()
+	p := buildPalette(dark, highContrastOn(), sysColors{
+		window:        fromColorref(win.GetSysColor(co.COLOR_WINDOW)),
+		windowText:    fromColorref(win.GetSysColor(co.COLOR_WINDOWTEXT)),
+		grayText:      fromColorref(win.GetSysColor(co.COLOR_GRAYTEXT)),
+		btnFace:       fromColorref(win.GetSysColor(co.COLOR_BTNFACE)),
+		highlight:     fromColorref(win.GetSysColor(co.COLOR_HIGHLIGHT)),
+		highlightText: fromColorref(win.GetSysColor(co.COLOR_HIGHLIGHTTEXT)),
+	})
+	return &p
 }
 
-var lightPalette = palette{
-	background:     win.RGB(0xFE, 0xFC, 0xF5),
-	onBackground:   win.RGB(0x1B, 0x1C, 0x18),
-	card:           win.RGB(0xF3, 0xF4, 0xE7),
-	cardSelected:   win.RGB(0xDD, 0xE6, 0xC6), // secondaryContainer
-	onSurface:      win.RGB(0x1B, 0x1C, 0x18),
-	surfaceVariant: win.RGB(0xE1, 0xE4, 0xD4),
-	onSurfaceVar:   win.RGB(0x45, 0x48, 0x3D),
-	outline:        win.RGB(0x75, 0x78, 0x6C),
-	primary:        win.RGB(0x46, 0x68, 0x00),
-	errorColor:     win.RGB(0xBA, 0x1A, 0x1A),
+func fromColorref(c win.COLORREF) rgb {
+	return rgb(c.Red())<<16 | rgb(c.Green())<<8 | rgb(c.Blue())
 }
 
-var darkPalette = palette{
-	dark:           true,
-	background:     win.RGB(0x1B, 0x1C, 0x18),
-	onBackground:   win.RGB(0xE4, 0xE3, 0xDB),
-	card:           win.RGB(0x25, 0x28, 0x1F),
-	cardSelected:   win.RGB(0x41, 0x4A, 0x32), // secondaryContainer
-	onSurface:      win.RGB(0xE4, 0xE3, 0xDB),
-	surfaceVariant: win.RGB(0x45, 0x48, 0x3D),
-	onSurfaceVar:   win.RGB(0xC5, 0xC8, 0xB9),
-	outline:        win.RGB(0x8F, 0x92, 0x85),
-	primary:        win.RGB(0xAB, 0xD4, 0x68),
-	errorColor:     win.RGB(0xFF, 0xB4, 0xAB),
-}
-
-func paletteFor(theme string) *palette {
-	switch theme {
-	case ThemeDark:
-		return &darkPalette
-	case ThemeLight:
-		return &lightPalette
-	}
-	if systemUsesDarkTheme() {
-		return &darkPalette
-	}
-	return &lightPalette
-}
+// cref converts to a GDI color.
+func cref(c rgb) win.COLORREF { return win.RGB(c.r(), c.g(), c.b()) }
 
 // systemUsesDarkTheme reads the "Choose your app mode" setting.
 func systemUsesDarkTheme() bool {
@@ -79,11 +45,15 @@ func systemUsesDarkTheme() bool {
 	return err == nil && v == 0
 }
 
-// lerpColor mixes a and b, t in [0,1].
-func lerpColor(a, b win.COLORREF, t float64) win.COLORREF {
-	t = max(0, min(1, t))
-	mix := func(x, y uint8) uint8 { return uint8(float64(x) + (float64(y)-float64(x))*t + 0.5) }
-	return win.RGB(mix(a.Red(), b.Red()), mix(a.Green(), b.Green()), mix(a.Blue(), b.Blue()))
+// highContrastOn reports whether a Windows high contrast theme is active.
+func highContrastOn() bool {
+	type highContrast struct {
+		cbSize, dwFlags uint32
+		scheme          uintptr
+	}
+	hc := highContrast{cbSize: uint32(unsafe.Sizeof(highContrast{}))}
+	ret, _, _ := procSPI.Call(0x0042, uintptr(hc.cbSize), uintptr(unsafe.Pointer(&hc)), 0) // SPI_GETHIGHCONTRAST
+	return ret != 0 && hc.dwFlags&1 != 0                                                   // HCF_HIGHCONTRASTON
 }
 
 func solidBrush(c win.COLORREF) win.HBRUSH {
@@ -96,6 +66,7 @@ var (
 	uxtheme        = windows.NewLazySystemDLL("uxtheme.dll")
 	procAppendMenu = user32.NewProc("AppendMenuW")
 	procSetTheme   = uxtheme.NewProc("SetWindowTheme")
+	procSPI        = user32.NewProc("SystemParametersInfoW")
 )
 
 const (
@@ -112,23 +83,99 @@ func appendMenu(h win.HMENU, flags uintptr, id uint16, text string) {
 	procAppendMenu.Call(uintptr(h), flags, uintptr(id), uintptr(unsafe.Pointer(p)))
 }
 
-// applyWindowTheme switches the title bar and the common controls of hwnd
-// (and the given children) to dark or light. Unsupported on old Windows
-// versions, where it silently does nothing.
-func applyWindowTheme(hwnd win.HWND, p *palette, children ...win.HWND) {
-	hwnd.DwmSetWindowAttribute(win.DwmAttrUseImmersiveDarkMode(p.dark))
-	name := "Explorer"
-	if p.dark {
-		name = "DarkMode_Explorer"
+// setTheme sets the visual style of a control; name "" with classic set
+// turns visual styles off so WM_CTLCOLOR* text colors apply.
+func setTheme(h win.HWND, name string, classic bool) {
+	if procSetTheme.Find() != nil {
+		return
 	}
-	for _, h := range children {
-		if procSetTheme.Find() == nil {
-			procSetTheme.Call(uintptr(h), uintptr(unsafe.Pointer(&wstr.EncodeToSlice(name)[0])), 0)
+	var p1, p2 uintptr
+	if classic {
+		empty := wstr.EncodeToSlice("")
+		p1, p2 = uintptr(unsafe.Pointer(&empty[0])), uintptr(unsafe.Pointer(&empty[0]))
+	} else if name != "" {
+		p1 = uintptr(unsafe.Pointer(&wstr.EncodeToSlice(name)[0]))
+	}
+	procSetTheme.Call(uintptr(h), p1, p2)
+}
+
+// applyWindowTheme switches the title bar and all child controls of hwnd to
+// dark or light. In dark mode, check boxes and group boxes lose their visual
+// style, since that ignores the text color. Without dark mode support (old
+// Windows versions) this silently does nothing.
+func applyWindowTheme(hwnd win.HWND, p *palette) {
+	hwnd.DwmSetWindowAttribute(win.DwmAttrUseImmersiveDarkMode(p.dark && !p.highContrast))
+	dark := p.dark && !p.highContrast
+	for _, h := range hwnd.EnumChildWindows() {
+		cls, _ := h.GetClassName()
+		style, _ := h.GetWindowLongPtr(co.GWLP_STYLE)
+		switch {
+		case !dark:
+			setTheme(h, "", false) // back to the default visual style
+		case cls == "Button" && isCheckOrGroup(co.BS(style&0x0f)):
+			setTheme(h, "", true)
+		case cls == "ComboBox" || cls == "Edit":
+			setTheme(h, "DarkMode_CFD", false)
+		default:
+			setTheme(h, "DarkMode_Explorer", false)
 		}
 		h.InvalidateRect(nil, true)
 	}
 	hwnd.SetWindowPos(0, win.POINT{}, win.SIZE{},
 		co.SWP_NOMOVE|co.SWP_NOSIZE|co.SWP_NOZORDER|co.SWP_FRAMECHANGED)
+	hwnd.InvalidateRect(nil, true)
+}
+
+func isCheckOrGroup(bs co.BS) bool {
+	switch bs {
+	case co.BS_CHECKBOX, co.BS_AUTOCHECKBOX, co.BS_3STATE, co.BS_AUTO3STATE,
+		co.BS_RADIOBUTTON, co.BS_AUTORADIOBUTTON, co.BS_GROUPBOX:
+		return true
+	}
+	return false
+}
+
+// themeDialog makes a dialog follow the app palette: background, label and
+// edit colors through WM_CTLCOLOR*, dark title bar and dark controls. The
+// returned function must be called from the dialog's WM_CREATE handler and
+// after a theme change.
+func themeDialog(wnd *ui.Modal, a *app) (apply func()) {
+	wnd.On().WmEraseBkgnd(func(p ui.WmEraseBkgnd) int {
+		rc, _ := wnd.Hwnd().GetClientRect()
+		p.Hdc().FillRect(&rc, a.bgBrush)
+		return 1
+	})
+	static := func(p ui.WmCtlColor) win.HBRUSH {
+		p.Hdc().SetTextColor(cref(a.pal.text))
+		p.Hdc().SetBkColor(cref(a.pal.background))
+		return a.bgBrush
+	}
+	edit := func(p ui.WmCtlColor) win.HBRUSH {
+		p.Hdc().SetTextColor(cref(a.pal.editText))
+		p.Hdc().SetBkColor(cref(a.pal.edit))
+		return a.editBrush
+	}
+	wnd.On().WmCtlColorStatic(static)
+	wnd.On().WmCtlColorBtn(static)
+	wnd.On().WmCtlColorEdit(edit)
+	wnd.On().WmCtlColorListBox(edit)
+	return func() { applyWindowTheme(wnd.Hwnd(), a.pal) }
+}
+
+var boldUiFont win.HFONT
+
+// sectionFont is the Windows message font in bold, for section titles.
+func sectionFont() win.HFONT {
+	if boldUiFont == 0 {
+		var ncm win.NONCLIENTMETRICS
+		ncm.SetCbSize()
+		if win.SystemParametersInfo(co.SPI_GETNONCLIENTMETRICS, ncm.CbSize(), unsafe.Pointer(&ncm), 0) == nil {
+			lf := ncm.LfMessageFont
+			lf.Weight = co.FW_BOLD
+			boldUiFont, _ = win.CreateFontIndirect(&lf)
+		}
+	}
+	return boldUiFont
 }
 
 // makeFont creates a font of the given point size scaled to the system DPI.

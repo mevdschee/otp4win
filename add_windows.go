@@ -6,6 +6,7 @@ import (
 
 	"github.com/rodrigocfd/windigo/co"
 	"github.com/rodrigocfd/windigo/ui"
+	"github.com/rodrigocfd/windigo/win"
 )
 
 // addDialog is open-otp's add screen with its "Account Details" and
@@ -31,16 +32,16 @@ func showAddDialog(a *app, init *Account) {
 		ui.OptsModal().
 			Title("Add code").
 			Size(ui.Dpi(w, h)).
-			// No WS_CLIPCHILDREN: group boxes rely on the parent painting
-			// behind them.
 			Style(co.WS_CAPTION|co.WS_SYSMENU|co.WS_BORDER|co.WS_VISIBLE),
 	)
 	const lx, ex, ew = 24, 130, w - 130 - 24
-	group := func(text string, y, cy int) {
-		ui.NewButton(me.wnd, ui.OptsButton().
+	// Section titles in bold, like the Windows 11 settings pages. Group
+	// boxes are avoided since they ignore the text color in dark mode.
+	var titles []*ui.Static
+	group := func(text string, y, _ int) {
+		titles = append(titles, ui.NewStatic(me.wnd, ui.OptsStatic().
 			Text(text).
-			Position(ui.Dpi(10, y)).Width(ui.DpiX(w-20)).Height(ui.DpiY(cy)).
-			CtrlStyle(co.BS_GROUPBOX).WndStyle(co.WS_CHILD|co.WS_VISIBLE))
+			Position(ui.Dpi(14, y)).Size(ui.Dpi(w-28, 20))))
 	}
 	label := func(text string, y int) {
 		ui.NewStatic(me.wnd, ui.OptsStatic().Text(text).Position(ui.Dpi(lx, y+3)))
@@ -90,7 +91,12 @@ func showAddDialog(a *app, init *Account) {
 			Width(ui.DpiX(88)),
 	)
 
+	applyTheme := themeDialog(me.wnd, a)
 	me.wnd.On().WmCreate(func(_ ui.WmCreate) int {
+		applyTheme()
+		for _, t := range titles {
+			t.Hwnd().SendMessage(co.WM_SETFONT, win.WPARAM(sectionFont()), 1)
+		}
 		if me.init != nil {
 			me.fill(*me.init)
 		}
