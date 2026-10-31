@@ -1,0 +1,31 @@
+# Build output
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/dist/
+
+# Test and profiling output
+*.test
+*.out
+coverage.*
+*.prof
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Local data, never commit secrets
+*.dat
+*.tmp
+settings.json
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
