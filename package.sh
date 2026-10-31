@@ -29,4 +29,14 @@ GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-H windowsgui -s -w -X ma
 go run ./tools/mkico dist/otp4win.ico winres/icon.png winres/icon48.png winres/icon32.png winres/icon16.png
 wixl -a x64 -D Version="$version" -D ExePath=dist/otp4win.exe -D IconPath=dist/otp4win.ico \
   -o dist/otp4win-$version-amd64.msi installer/otp4win.wxs
+
+# wixl removes the old version right after InstallValidate, outside the
+# installation transaction: if the new install then fails, nothing is left.
+# Move RemoveExistingProducts after InstallInitialize, so a failed upgrade
+# rolls back to the old version (WiX: Schedule="afterInstallInitialize").
+msiinfo export dist/otp4win-$version-amd64.msi InstallExecuteSequence > dist/seq.idt
+sed -i 's/^RemoveExistingProducts\t\t1401\r\?$/RemoveExistingProducts\t\t1501\r/' dist/seq.idt
+grep -q $'^RemoveExistingProducts\t\t1501\r$' dist/seq.idt
+msibuild dist/otp4win-$version-amd64.msi -i dist/seq.idt
+rm dist/seq.idt
 ls -l dist/*.msi

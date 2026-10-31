@@ -46,7 +46,8 @@ func (me *app) offerUpdate(r release) {
 			if err == nil {
 				// msiexec shows the installer; the MSI replaces the running
 				// version, so close to release otp4win.exe.
-				err = exec.Command("msiexec", "/i", path).Start()
+				log := filepath.Join(os.TempDir(), "otp4win-update.log")
+				err = exec.Command("msiexec", "/i", path, "/l*v", log).Start()
 			}
 			if err != nil {
 				me.lblStatus.Hwnd().SetWindowText("")
