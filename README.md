@@ -85,12 +85,13 @@ it before building (`go generate` needs `~/go/bin` in your `PATH`):
 
 ## Release
 
-The version is set in `winres/winres.json` (`file_version`, as
-`major.minor.patch.build`). Change the first three numbers by hand for a new
-version; the build number is bumped automatically.
+    ./release.sh          # 0.3.3 -> 0.3.4 (build, the default)
+    ./release.sh minor    # 0.3.4 -> 0.4.0
+    ./release.sh major    # 0.4.0 -> 1.0.0
 
-    ./package.sh   # bump build number, build dist/otp4win-<version>-amd64.msi
-    ./release.sh   # create GitHub release v<major.minor.patch> with the MSI
-
-`release.sh` runs `package.sh` when the MSI is missing and takes an optional
-release title as argument. The installer is defined in `installer/otp4win.wxs`.
+`release.sh` needs a clean working tree. It raises the version in
+`winres/winres.json` (`file_version`, as `major.minor.build.revision`; the
+revision goes up on every release), runs the tests, builds
+`dist/otp4win-<version>-amd64.msi`, commits and pushes the version bump and
+creates the GitHub release with the MSI. Besides the build tools above it
+needs the GitHub CLI (`gh`). The installer is defined in `installer/otp4win.wxs`.

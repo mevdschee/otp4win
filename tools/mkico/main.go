@@ -1,5 +1,5 @@
 // Command mkico packs PNG images into a Windows .ico file (PNG compressed
-// entries, supported since Windows Vista). It is used by package.sh to make
+// entries, supported since Windows Vista). It is used by release.sh to make
 // the installer icon from the PNGs in winres.
 //
 //	go run ./tools/mkico out.ico in1.png in2.png ...

@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// version is set at build time by package.sh (-ldflags -X main.version=...).
+// version is set at build time by release.sh (-ldflags -X main.version=...).
 // Development builds have no version and skip the update check.
 var version = ""
 
