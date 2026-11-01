@@ -1,9 +1,9 @@
 # otp4win
 
 A TOTP (two-factor authentication code) client for Windows, written in Go with
-[Windigo](https://github.com/rodrigocfd/windigo). It has the features of
+[Windigo](https://github.com/rodrigocfd/windigo). It is inspired by
 [open-otp](https://github.com/avan1235/open-otp), but uses plain Win32 controls
-and GDI drawing (no OpenGL), so it is small, starts fast and works well over RDP.
+and GDI drawing (no OpenGL), so it starts fast and works well over RDP.
 
 ![otp4win](screenshot.png)
 
@@ -15,8 +15,10 @@ and GDI drawing (no OpenGL), so it is small, starts fast and works well over RDP
 - Add codes by hand with issuer, account name, secret, algorithm
   (SHA1/SHA256/SHA512), digits (6/8) and period (15/30/60 seconds).
 - Paste an `otpauth://` link to add a code at once, either in the main window or
-  in any field of the add dialog. Google Authenticator exports
-  (`otpauth-migration://`) add all their accounts.
+  in any field of the add dialog. Pasting a Google Authenticator export link
+  (`otpauth-migration://`) adds all its TOTP accounts. otp4win cannot scan QR
+  codes, so decode the export QR code first (for instance with a QR scanner app
+  on your phone or `zbarimg` on Linux) and copy the link it contains.
 - Search on issuer and account name.
 - Reorder with drag and drop, or sort by issuer or account name with optional
   group headers, empty values first and reverse order.
@@ -26,7 +28,8 @@ and GDI drawing (no OpenGL), so it is small, starts fast and works well over RDP
 - Scales with the Windows display scaling (DPI).
 - Checks for a newer release on startup and installs it on request.
 
-HOTP (counter based) codes are not supported.
+HOTP (counter based) codes are not supported. There is no export, and codes
+cannot be added by scanning a QR code.
 
 ## Keyboard
 
