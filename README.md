@@ -70,6 +70,7 @@ Install the tools once:
 
     sudo apt install jq wixl msitools
     go install github.com/tc-hib/go-winres@latest
+    echo 'export PATH="$PATH:$HOME/go/bin"' >> ~/.bashrc && source ~/.bashrc
 
 The icon, manifest (visual styles, DPI awareness) and version info are compiled
 from `winres/` into `rsrc_windows_amd64.syso`, which is not committed. Generate
