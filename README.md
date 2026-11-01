@@ -85,7 +85,11 @@ it before building (`go generate` needs `~/go/bin` in your `PATH`):
 ## Test
 
     go test .
-    wine otp4win.exe
+    ./run.sh
+
+`run.sh` checks that `go`, `go-winres` and `wine` are installed, builds
+`otp4win.exe` and runs it with Wine (`sudo apt install wine`). Wine has its own
+`%APPDATA%`, so the codes you add there are kept apart from a real install.
 
 ## Release
 
