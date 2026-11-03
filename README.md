@@ -48,8 +48,9 @@ cannot be added by scanning a QR code.
 
 Download `otp4win-<version>-amd64.msi` from the
 [releases](https://github.com/mevdschee/otp4win/releases) and run it. It
-installs `otp4win.exe` in Program Files and adds an "otp4win" shortcut to the
-Start menu. Newer versions replace older ones. The installer is not signed, so
+installs `otp4win.exe` in `%LOCALAPPDATA%\Programs\otp4win` and adds an
+"otp4win" shortcut to the Start menu. It installs for the current user only, so
+it does not need admin rights. Newer versions replace older ones. The installer is not signed, so
 Windows SmartScreen may ask you to confirm ("More info", "Run anyway").
 
 It runs on 64-bit Windows 10 and 11.
