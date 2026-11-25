@@ -1,7 +1,11 @@
 # otp4win
 
-A TOTP (two-factor authentication code) client for Windows, written in Go with
-[Windigo](https://github.com/rodrigocfd/windigo). It is inspired by
+Your two-factor codes on your Windows desktop, without reaching for your phone
+and without an account or a cloud: the codes are encrypted for your Windows
+user and never leave your computer.
+
+otp4win is a TOTP (two-factor authentication code) client for Windows, written
+in Go with [Windigo](https://github.com/rodrigocfd/windigo). It is inspired by
 [open-otp](https://github.com/avan1235/open-otp), but uses plain Win32 controls
 and GDI drawing (no OpenGL), so it starts fast and works well over RDP.
 
@@ -26,7 +30,8 @@ and GDI drawing (no OpenGL), so it starts fast and works well over RDP.
 - Uses the Windows colors and follows the light/dark app mode and high contrast
   themes automatically. Light or dark can also be forced in the settings.
 - Scales with the Windows display scaling (DPI).
-- Checks for a newer release on startup and installs it on request.
+- Checks for a newer release on startup and installs it on request, or opens
+  the download page in a portable copy.
 
 HOTP (counter based) codes are not supported. There is no export, and codes
 cannot be added by scanning a QR code.
@@ -53,6 +58,24 @@ installs `otp4win.exe` in `%LOCALAPPDATA%\Programs\otp4win` and adds an
 it does not need admin rights. Newer versions replace older ones. The installer is not signed, so
 Windows SmartScreen may ask you to confirm ("More info", "Run anyway").
 
+To use it without installing, download `otp4win-<version>-amd64.exe` instead
+and run it from anywhere. It is the same program the installer installs. The
+codes and settings still go to `%APPDATA%\otp4win`, and when an update is
+available it offers the download page instead of installing. For Windows on
+ARM there is `otp4win-<version>-arm64.exe`, a native build that is only
+available as a portable exe; the installer works there too, but runs the amd64
+build emulated.
+
+Each release has a `SHA256SUMS` file. To check a download, compare its hash
+with the one listed there, for example in PowerShell:
+
+    Get-FileHash otp4win-<version>-amd64.exe
+
+The files are not signed, so SmartScreen and some virus scanners may warn
+about them, as they do for many unsigned programs. If one does, check the
+hash first. The source and the build script are in this repository, so you can
+also build the exe yourself.
+
 It runs on 64-bit Windows 10 and 11.
 
 ## Data
@@ -65,7 +88,7 @@ next to it. Your codes never leave your computer.
 
 On startup otp4win asks GitHub for the latest release. When a newer version
 is available it offers to download the MSI and install it; otp4win closes while
-the installer runs. This is the only network access and can be turned off in
+the installer runs. A portable copy offers the download page instead. This is the only network access and can be turned off in
 Settings ("Check for updates on startup").
 
 ## Build (on Linux)
@@ -101,6 +124,9 @@ it before building (`go generate` needs `~/go/bin` in your `PATH`):
 `release.sh` needs a clean working tree. It raises the version in
 `winres/winres.json` (`file_version`, as `major.minor.build.revision`; the
 revision goes up on every release), runs the tests, builds
-`dist/otp4win-<version>-amd64.msi`, commits and pushes the version bump and
-creates the GitHub release with the MSI. Besides the build tools above it
+`dist/otp4win-<version>-amd64.msi`, the portable
+`dist/otp4win-<version>-amd64.exe` and `dist/otp4win-<version>-arm64.exe`
+and `dist/SHA256SUMS`, commits and pushes the version bump and creates the
+GitHub release with those four files. wixl cannot build an arm64 MSI, so
+arm64 is only a portable exe. Besides the build tools above it
 needs the GitHub CLI (`gh`). The installer is defined in `installer/otp4win.wxs`.

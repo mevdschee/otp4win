@@ -7,9 +7,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/rodrigocfd/windigo/co"
+	"golang.org/x/sys/windows"
 )
 
 // checkForUpdate asks GitHub for the latest release in the background and
@@ -31,7 +33,29 @@ func (me *app) checkForUpdate() {
 	}()
 }
 
+// installed reports whether this is the copy the MSI installed, in
+// %LOCALAPPDATA%\Programs\otp4win, and not the portable exe. A portable copy
+// cannot update itself: the MSI would install a second copy next to it.
+func installed() bool {
+	exe, err := os.Executable()
+	if err != nil {
+		return false
+	}
+	dir := filepath.Join(os.Getenv("LOCALAPPDATA"), "Programs", "otp4win")
+	return strings.EqualFold(filepath.Clean(filepath.Dir(exe)), filepath.Clean(dir))
+}
+
 func (me *app) offerUpdate(r release) {
+	if !installed() {
+		msg := fmt.Sprintf("otp4win %s is available (you have %s).\n\n"+
+			"This copy is not installed, so it cannot update itself. Open the download page?\n\n"+
+			"Update checks can be turned off in Settings.", r.Version, version)
+		if ret, _ := me.wnd.Hwnd().MessageBox(msg, "Update available", co.MB_YESNO|co.MB_ICONINFORMATION); ret == co.ID_YES {
+			_ = windows.ShellExecute(windows.Handle(me.wnd.Hwnd()), windows.StringToUTF16Ptr("open"),
+				windows.StringToUTF16Ptr("https://github.com/mevdschee/otp4win/releases/latest"), nil, nil, windows.SW_SHOWNORMAL)
+		}
+		return
+	}
 	msg := fmt.Sprintf("otp4win %s is available (you have %s).\n\n"+
 		"Download and install it now? otp4win closes during the installation.\n\n"+
 		"Update checks can be turned off in Settings.", r.Version, version)
