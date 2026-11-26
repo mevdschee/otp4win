@@ -1,7 +1,21 @@
 #!/bin/bash
 #
 # go install github.com/tc-hib/go-winres@latest
-# sudo apt install jq wixl msitools gh
+# sudo apt install jq wixl msitools gh default-jre
+# jsign: install jsign_<version>_all.deb from https://github.com/ebourg/jsign/releases
+#
+# Code signing uses the Certum certificate in SimplySign, the key never leaves
+# the Certum cloud. Install SimplySign Desktop for Linux, start it and log in
+# with a token from the SimplySign mobile app before running this script.
+# Signing uses jsign, not osslsigncode: the SimplySign PKCS#11 library has
+# OpenSSL 1.0 built in and crashes when loaded next to the system OpenSSL 3.
+# Settings (environment variables):
+#
+#   CERTUM_MODULE  PKCS#11 library of SimplySign Desktop (searched in /opt)
+#   CERTUM_CERT    signing certificate followed by the intermediate CA, PEM
+#                  (default ~/.config/certum/codesign.pem)
+#   CERTUM_ALIAS   alias of the key, when SimplySign has more than one
+#   CERTUM_PIN     PKCS#11 PIN, if SimplySign asks for one
 #
 # Releases a new version of otp4win:
 #
@@ -34,6 +48,24 @@ if [ -n "$(git status --porcelain)" ]; then
 	exit 1
 fi
 
+# Code signing.
+module=${CERTUM_MODULE:-$(find /opt -iname 'SimplySignPKCS*.so' 2>/dev/null | head -1)}
+cert=${CERTUM_CERT:-$HOME/.config/certum/codesign.pem}
+if [ ! -f "$module" ] || [ ! -f "$cert" ] || ! command -v jsign >/dev/null; then
+	echo "cannot sign: install jsign, set CERTUM_MODULE and CERTUM_CERT, see the top of $0" >&2
+	exit 1
+fi
+sign() {
+	# jsign takes a SunPKCS11 configuration, not the library itself.
+	local cfg=dist/simplysign.cfg
+	printf 'name = SimplySign\nlibrary = %s\n' "$module" >$cfg
+	jsign --storetype PKCS11 --keystore $cfg --storepass "${CERTUM_PIN:-}" \
+		${CERTUM_ALIAS:+--alias "$CERTUM_ALIAS"} --certfile "$cert" \
+		--alg SHA-256 --name otp4win --url https://github.com/mevdschee/otp4win \
+		--tsaurl http://time.certum.pl --tsmode RFC3161 "$1"
+	rm $cfg
+}
+
 # Bump the version.
 json=winres/winres.json
 ver=$(jq -r '.RT_VERSION["#1"]["0000"].fixed.file_version' $json)
@@ -61,6 +93,9 @@ rm -rf dist && mkdir dist
 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-H windowsgui -s -w -X main.version=$version" -o dist/otp4win.exe .
 arm=dist/otp4win-$version-arm64.exe
 GOOS=windows GOARCH=arm64 go build -trimpath -ldflags="-H windowsgui -s -w -X main.version=$version" -o $arm .
+# Sign the exes before the MSI is built, so the MSI installs the signed exe.
+sign dist/otp4win.exe
+sign $arm
 
 # Build the MSI.
 msi=dist/otp4win-$version-amd64.msi
@@ -80,6 +115,8 @@ msibuild $msi -i dist/seq.idt
 rm dist/seq.idt
 # The exe must be versioned in the File table, see installer/otp4win.wxs.
 msiinfo export $msi File | grep -q $'\t'"$version.$revision"$'\t'
+# Sign the MSI last, any change to it after this breaks the signature.
+sign $msi
 
 # The portable amd64 exe and the checksums.
 exe=dist/otp4win-$version-amd64.exe
