@@ -54,9 +54,9 @@ cannot be added by scanning a QR code.
 Download `otp4win-<version>-amd64.msi` from the
 [releases](https://github.com/mevdschee/otp4win/releases) and run it. It
 installs `otp4win.exe` in `%LOCALAPPDATA%\Programs\otp4win` and adds an
-"otp4win" shortcut to the Start menu. It installs for the current user only, so
-it does not need admin rights. Newer versions replace older ones. The installer is not signed, so
-Windows SmartScreen may ask you to confirm ("More info", "Run anyway").
+"otp4win" shortcut to the Start menu. It installs for the current user only,
+so it does not need admin rights. Newer versions replace older ones. The
+installer is signed by Maussoft B.V., see "Code signing" below.
 
 To use it without installing, download `otp4win-<version>-amd64.exe` instead
 and run it from anywhere. It is the same program the installer installs. The
@@ -71,10 +71,15 @@ with the one listed there, for example in PowerShell:
 
     Get-FileHash otp4win-<version>-amd64.exe
 
-The files are not signed, so SmartScreen and some virus scanners may warn
-about them, as they do for many unsigned programs. If one does, check the
-hash first. The source and the build script are in this repository, so you can
-also build the exe yourself.
+### Code signing
+
+Since version 0.3.7 the installer and the exes are signed with a Certum code
+signing certificate issued to Maussoft B.V. To check, right-click the file in
+Explorer, choose Properties and open the "Digital Signatures" tab. SmartScreen
+may still warn about a new release until enough people have downloaded it
+("More info", "Run anyway"). Do not run a file that is not signed by Maussoft
+B.V. The source and the build script are in this repository, so you can also
+build the exe yourself.
 
 It runs on 64-bit Windows 10 and 11.
 
@@ -125,8 +130,11 @@ it before building (`go generate` needs `~/go/bin` in your `PATH`):
 `winres/winres.json` (`file_version`, as `major.minor.build.revision`; the
 revision goes up on every release), runs the tests, builds
 `dist/otp4win-<version>-amd64.msi`, the portable
-`dist/otp4win-<version>-amd64.exe` and `dist/otp4win-<version>-arm64.exe`
-and `dist/SHA256SUMS`, commits and pushes the version bump and creates the
-GitHub release with those four files. wixl cannot build an arm64 MSI, so
-arm64 is only a portable exe. Besides the build tools above it
-needs the GitHub CLI (`gh`). The installer is defined in `installer/otp4win.wxs`.
+`dist/otp4win-<version>-amd64.exe` and `dist/otp4win-<version>-arm64.exe` and
+`dist/SHA256SUMS`, commits and pushes the version bump and creates the GitHub
+release with those four files. wixl cannot build an arm64 MSI, so arm64 is
+only a portable exe. Besides the build tools above it needs the GitHub CLI
+(`gh`). The installer is defined in `installer/otp4win.wxs`. `release.sh`
+signs the exes and the MSI with jsign and the Certum certificate in
+SimplySign; start SimplySign Desktop and connect it first. The settings are at
+its top.
