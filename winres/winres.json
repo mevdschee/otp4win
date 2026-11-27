@@ -38,16 +38,16 @@
     "#1": {
       "0000": {
         "fixed": {
-          "file_version": "0.3.8.6",
-          "product_version": "0.3.8.6"
+          "file_version": "0.3.9.7",
+          "product_version": "0.3.9.7"
         },
         "info": {
           "0409": {
             "FileDescription": "otp4win",
-            "FileVersion": "0.3.8",
+            "FileVersion": "0.3.9",
             "OriginalFilename": "otp4win.exe",
             "ProductName": "otp4win",
-            "ProductVersion": "0.3.8"
+            "ProductVersion": "0.3.9"
           }
         }
       }
