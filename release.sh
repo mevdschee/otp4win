@@ -1,21 +1,14 @@
 #!/bin/bash
 #
 # go install github.com/tc-hib/go-winres@latest
-# sudo apt install jq wixl msitools gh default-jre
-# jsign: install jsign_<version>_all.deb from https://github.com/ebourg/jsign/releases
+# sudo apt install jq wixl msitools gh
+# go install github.com/mevdschee/simplysign-go/cmd/ssctl@latest
 #
-# Code signing uses the Certum certificate in SimplySign, the key never leaves
-# the Certum cloud. Install SimplySign Desktop for Linux, start it and log in
-# with a token from the SimplySign mobile app before running this script.
-# Signing uses jsign, not osslsigncode: the SimplySign PKCS#11 library has
-# OpenSSL 1.0 built in and crashes when loaded next to the system OpenSSL 3.
-# Settings (environment variables):
-#
-#   CERTUM_MODULE  PKCS#11 library of SimplySign Desktop (searched in /opt)
-#   CERTUM_CERT    signing certificate followed by the intermediate CA, PEM
-#                  (default ~/.config/certum/codesign.pem)
-#   CERTUM_ALIAS   alias of the key, when SimplySign has more than one
-#   CERTUM_PIN     PKCS#11 PIN, if SimplySign asks for one
+# Code signing uses ssctl (github.com/mevdschee/simplysign-go) with the Certum
+# certificate of Maussoft B.V., whose key stays in the Certum cloud
+# (SimplySign). Run "ssctl login" first, with a token from the SimplySign
+# mobile app. ssctl adds the intermediate CA and a Certum timestamp by itself,
+# and needs neither SimplySign Desktop nor its PKCS#11 library.
 #
 # Releases a new version of otp4win:
 #
@@ -49,21 +42,12 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 
 # Code signing.
-module=${CERTUM_MODULE:-$(find /opt -iname 'SimplySignPKCS*.so' 2>/dev/null | head -1)}
-cert=${CERTUM_CERT:-$HOME/.config/certum/codesign.pem}
-if [ ! -f "$module" ] || [ ! -f "$cert" ] || ! command -v jsign >/dev/null; then
-	echo "cannot sign: install jsign, set CERTUM_MODULE and CERTUM_CERT, see the top of $0" >&2
+if ! command -v ssctl >/dev/null || ! ssctl info >/dev/null; then
+	echo "cannot sign: install ssctl and run \"ssctl login\", see the top of $0" >&2
 	exit 1
 fi
 sign() {
-	# jsign takes a SunPKCS11 configuration, not the library itself.
-	local cfg=dist/simplysign.cfg
-	printf 'name = SimplySign\nlibrary = %s\n' "$module" >$cfg
-	jsign --storetype PKCS11 --keystore $cfg --storepass "${CERTUM_PIN:-}" \
-		${CERTUM_ALIAS:+--alias "$CERTUM_ALIAS"} --certfile "$cert" \
-		--alg SHA-256 --name otp4win --url https://github.com/mevdschee/otp4win \
-		--tsaurl http://time.certum.pl --tsmode RFC3161 "$1"
-	rm $cfg
+	ssctl sign "$1"
 }
 
 # Bump the version.

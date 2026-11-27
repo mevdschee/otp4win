@@ -136,6 +136,7 @@ revision goes up on every release), runs the tests, builds
 release with those four files. wixl cannot build an arm64 MSI, so arm64 is
 only a portable exe. Besides the build tools above it needs the GitHub CLI
 (`gh`). The installer is defined in `installer/otp4win.wxs`. `release.sh`
-signs the exes and the MSI with jsign and the Certum certificate in
-SimplySign; start SimplySign Desktop and connect it first. The settings are at
-its top.
+signs the exes and the MSI with
+[ssctl](https://github.com/mevdschee/simplysign-go) and the Certum certificate
+in SimplySign; run `ssctl login` first and log in with a token from the
+SimplySign mobile app. SimplySign Desktop is not needed.
