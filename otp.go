@@ -156,7 +156,6 @@ type Preferences struct {
 	NullsFirst    bool   `json:"nullsFirst"`
 	Reversed      bool   `json:"reversed"`
 	ShowHeaders   bool   `json:"showHeaders"`
-	CheckUpdates  bool   `json:"checkUpdates"`
 }
 
 func defaultPreferences() Preferences {
@@ -165,7 +164,6 @@ func defaultPreferences() Preferences {
 		ConfirmDelete: true,
 		SortBy:        SortNone,
 		ShowHeaders:   true,
-		CheckUpdates:  true,
 	}
 }
 

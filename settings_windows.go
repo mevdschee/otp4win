@@ -67,7 +67,9 @@ func showSettings(a *app) {
 	chkReversed := check("&Reverse sort order", 226, p.Reversed)
 
 	group("Updates", 260, 0)
-	chkUpdates := check("Check for &updates on startup", 284, p.CheckUpdates)
+	// Not LWS_TRANSPARENT: the link paints the WM_CTLCOLORSTATIC brush.
+	lnkUpdates := ui.NewSysLink(wnd, ui.OptsSysLink().
+		Text(linkText).Position(ui.Dpi(24, 284)).Size(ui.Dpi(w-48, 20)))
 	versionText := "Development build"
 	if version != "" {
 		versionText = "Version " + version
@@ -130,10 +132,7 @@ func showSettings(a *app) {
 		a.prefs.NullsFirst = chkNulls.IsChecked()
 		apply()
 	})
-	chkUpdates.On().BnClicked(func() {
-		a.prefs.CheckUpdates = chkUpdates.IsChecked()
-		apply()
-	})
+	lnkUpdates.On().NmClick(func(_ *win.NMLINK) { a.checkForUpdates(wnd, lnkUpdates) })
 	chkReversed.On().BnClicked(func() {
 		a.prefs.Reversed = chkReversed.IsChecked()
 		apply()

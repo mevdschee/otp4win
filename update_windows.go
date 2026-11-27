@@ -11,26 +11,55 @@ import (
 	"time"
 
 	"github.com/rodrigocfd/windigo/co"
+	"github.com/rodrigocfd/windigo/ui"
 	"golang.org/x/sys/windows"
 )
 
-// checkForUpdate asks GitHub for the latest release in the background and
-// offers to install it when it is newer than this build.
-func (me *app) checkForUpdate() {
-	if version == "" || !me.prefs.CheckUpdates {
+// checkForUpdates is the "Check for updates" link in Settings: it asks
+// GitHub for the latest release and offers to install it when it is newer.
+// Nothing is checked automatically. The link shows the progress; dlg owns
+// the message boxes.
+func (me *app) checkForUpdates(dlg *ui.Modal, lnk *ui.SysLink) {
+	h := dlg.Hwnd()
+	if version == "" {
+		h.MessageBox("This is a development build. Updates are only for installed releases.", "otp4win", co.MB_ICONINFORMATION)
 		return
 	}
+	busy(lnk, "Checking for updates...")
 	go func() {
 		data, err := httpGet(latestReleaseURL, 1<<20)
-		if err != nil {
-			return // offline or rate limited: try again next start
+		var r release
+		var ok bool
+		if err == nil {
+			r, ok = parseRelease(data)
 		}
-		r, ok := parseRelease(data)
-		if !ok || !newerVersion(r.Version, version) {
-			return
-		}
-		me.wnd.UiThread(func() { me.offerUpdate(r) })
+		me.wnd.UiThread(func() {
+			if dlg.Hwnd() == 0 {
+				return // Settings was closed meanwhile
+			}
+			done(lnk)
+			switch {
+			case err != nil:
+				h.MessageBox("Could not check for updates:\n"+err.Error(), "otp4win", co.MB_ICONERROR)
+			case !ok || !newerVersion(r.Version, version):
+				h.MessageBox("otp4win is up to date. You have the latest version ("+version+").", "otp4win", co.MB_ICONINFORMATION)
+			default:
+				me.offerUpdate(dlg, lnk, r)
+			}
+		})
 	}()
+}
+
+const linkText = "<a>Check for updates</a>"
+
+func busy(lnk *ui.SysLink, text string) {
+	lnk.Hwnd().SetWindowText(text)
+	lnk.Hwnd().EnableWindow(false)
+}
+
+func done(lnk *ui.SysLink) {
+	lnk.Hwnd().SetWindowText(linkText)
+	lnk.Hwnd().EnableWindow(true)
 }
 
 // installed reports whether this is the copy the MSI installed, in
@@ -45,25 +74,23 @@ func installed() bool {
 	return strings.EqualFold(filepath.Clean(filepath.Dir(exe)), filepath.Clean(dir))
 }
 
-func (me *app) offerUpdate(r release) {
+func (me *app) offerUpdate(dlg *ui.Modal, lnk *ui.SysLink, r release) {
+	h := dlg.Hwnd()
 	if !installed() {
 		msg := fmt.Sprintf("otp4win %s is available (you have %s).\n\n"+
-			"This copy is not installed, so it cannot update itself. Open the download page?\n\n"+
-			"Update checks can be turned off in Settings.", r.Version, version)
-		if ret, _ := me.wnd.Hwnd().MessageBox(msg, "Update available", co.MB_YESNO|co.MB_ICONINFORMATION); ret == co.ID_YES {
-			_ = windows.ShellExecute(windows.Handle(me.wnd.Hwnd()), windows.StringToUTF16Ptr("open"),
+			"This copy is not installed, so it cannot update itself. Open the download page?", r.Version, version)
+		if ret, _ := h.MessageBox(msg, "Update available", co.MB_YESNO|co.MB_ICONINFORMATION); ret == co.ID_YES {
+			_ = windows.ShellExecute(windows.Handle(h), windows.StringToUTF16Ptr("open"),
 				windows.StringToUTF16Ptr("https://github.com/mevdschee/otp4win/releases/latest"), nil, nil, windows.SW_SHOWNORMAL)
 		}
 		return
 	}
 	msg := fmt.Sprintf("otp4win %s is available (you have %s).\n\n"+
-		"Download and install it now? otp4win closes during the installation.\n\n"+
-		"Update checks can be turned off in Settings.", r.Version, version)
-	if ret, _ := me.wnd.Hwnd().MessageBox(msg, "Update available", co.MB_YESNO|co.MB_ICONINFORMATION); ret != co.ID_YES {
+		"Download and install it now? otp4win closes during the installation.", r.Version, version)
+	if ret, _ := h.MessageBox(msg, "Update available", co.MB_YESNO|co.MB_ICONINFORMATION); ret != co.ID_YES {
 		return
 	}
-	me.wnd.Hwnd().KillTimer(timerToast)
-	me.lblStatus.Hwnd().SetWindowText("Downloading otp4win " + r.Version + "...")
+	busy(lnk, "Downloading otp4win "+r.Version+"...")
 	go func() {
 		path, err := downloadMsi(r)
 		me.wnd.UiThread(func() {
@@ -74,9 +101,14 @@ func (me *app) offerUpdate(r release) {
 				err = exec.Command("msiexec", "/i", path, "/l*v", log).Start()
 			}
 			if err != nil {
-				me.lblStatus.Hwnd().SetWindowText("")
+				if dlg.Hwnd() != 0 {
+					done(lnk)
+				}
 				me.showError("Could not install the update", err)
 				return
+			}
+			if dlg.Hwnd() != 0 {
+				dlg.Hwnd().SendMessage(co.WM_CLOSE, 0, 0)
 			}
 			me.wnd.Hwnd().PostMessage(co.WM_CLOSE, 0, 0)
 		})

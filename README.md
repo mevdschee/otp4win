@@ -91,10 +91,11 @@ next to it. Your codes never leave your computer.
 
 ## Updates
 
-On startup otp4win asks GitHub for the latest release. When a newer version
-is available it offers to download the MSI and install it; otp4win closes while
-the installer runs. A portable copy offers the download page instead. This is the only network access and can be turned off in
-Settings ("Check for updates on startup").
+Settings has a "Check for updates" link that asks GitHub for the latest
+release. When a newer version is available it offers to download the MSI and
+install it; otp4win closes while the installer runs. A portable copy offers the
+download page instead. Nothing is checked automatically, so this is the only
+network access and only happens when you click the link.
 
 ## Build (on Linux)
 

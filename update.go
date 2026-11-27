@@ -7,7 +7,7 @@ import (
 )
 
 // version is set at build time by release.sh (-ldflags -X main.version=...).
-// Development builds have no version and skip the update check.
+// Development builds have no version and cannot update.
 var version = ""
 
 // latestReleaseURL is the GitHub API endpoint for the newest release.
